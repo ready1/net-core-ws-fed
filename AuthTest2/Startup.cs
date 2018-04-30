@@ -280,16 +280,15 @@ namespace AuthTest2
         {
             var envOptions = new EnvironmentOptions();
             configuration.GetSection("dimensionData:environment").Bind(envOptions);
-//            IServiceDiscoveryClient serviceDiscoveryClient = new ServiceDiscoveryClient(Options.Create(envOptions));
-//
-//            string upmKey = Configuration["dimensionData:ui:keys:upm"];
-//            var baseAddress = serviceDiscoveryClient.FindGlobalApiService(upmKey).Result;
-//            return new HttpClientBuilder()
-//                .SetBaseAddress(baseAddress)
-//                .SetRetryPolicy(3, TimeSpan.FromSeconds(1), 2)
-//                .Build();
+            IServiceDiscoveryClient serviceDiscoveryClient = new ServiceDiscoveryClient(Options.Create(envOptions));
 
-            return null;
+            string upmKey = Configuration["dimensionData:ui:keys:upm"];
+            var baseAddress = serviceDiscoveryClient.FindGlobalApiService(upmKey).Result;
+            return new HttpClientBuilder()
+                .SetBaseAddress(baseAddress)
+                .SetRetryPolicy(3, TimeSpan.FromSeconds(1), 2)
+                .Build();
+
         }
 
 
