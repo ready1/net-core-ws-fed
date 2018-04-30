@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Security.Cryptography.X509Certificates;
-using DimensionData.Toolset.ServiceDiscovery;
 using DimensionData.Toolset.Validation;
 
 namespace AuthTest2.Auth
@@ -14,12 +13,12 @@ namespace AuthTest2.Auth
         /// <param name="appKey">The application key of the endpoint.</param>
         /// <param name="locationKey">The location key of the endpoint.</param>
         /// <returns>The endpoint of the discovered service.</returns>
-        public static Uri GetServiceEndpointFromDnsConvention(string serviceName = null, string appKey = null,
-            string locationKey = null)
-        {
-            var formatter = new DnsServiceEndpointFormatter();
-            return formatter.Format(appKey, serviceName, locationKey);
-        }
+        //public static Uri GetServiceEndpointFromDnsConvention(string serviceName = null, string appKey = null,
+        //    string locationKey = null)
+        //{
+        //    var formatter = new DnsServiceEndpointFormatter();
+        //    return formatter.Format(appKey, serviceName, locationKey);
+        //}
 
         /// <summary>
         ///     Get a certificate from a certificate store by thumbprint.
