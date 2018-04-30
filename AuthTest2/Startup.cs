@@ -3,21 +3,30 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using System.Web;
 using AuthTest2.Auth;
-using DimensionData.Toolset.Configuration;
+using AuthTest2.Models;
+using DimensionData.ServiceLayer.Sdk.ApiClient;
+using DimensionData.ServiceLayer.Sdk.Authentication;
+using DimensionData.ServiceLayer.Sdk.Configuration;
+using DimensionData.ServiceLayer.Sdk.ServiceDiscovery;
+using DimensionData.ServiceLayer.Sdk.ServiceDiscovery.Client;
+using DimensionData.Toolset.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.WsFederation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.WsFederation;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Rest.Azure;
+using SQLitePCL;
 
 namespace AuthTest2
 {
@@ -31,7 +40,7 @@ namespace AuthTest2
         public IConfiguration Configuration { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
-        public void ConfigureServices(IServiceCollection services)
+        public void ConfigureServices2(IServiceCollection services)
         {
             services.AddAuthentication(sharedOptions =>
             {
@@ -93,7 +102,7 @@ namespace AuthTest2
 
         // This method gets called by the runtime. Use this method to add services to the container.
         // TODO: Callbacks are not working
-        public void ConfigureServices2(IServiceCollection services)
+        public void ConfigureServices(IServiceCollection services)
         {
             var appKey = Configuration["dimensionData:ui:auth:appKey"];
             if (appKey == null)
@@ -111,7 +120,7 @@ namespace AuthTest2
             var stsCertificateThumbprint = Configuration["dimensionData:ui:sts:certificateThumbprint"];
             var stsCertificate = Configuration["dimensionData:ui:sts:certificate"];
             var stsRealm = Configuration["dimensionData:ui:sts:realm"];
-            var stsReplyTo = Configuration["dimensionData:ui:sts:replyTo"];
+            var stsReplyTo = Configuration["dimensionData:ui:sts:replyTo"] + "signin-wsfed";
             var stsIssuer = Configuration["dimensionData:ui:sts:issuer"];
             var stsSignInEndpoint = Configuration["dimensionData:ui:sts:signInEndpoint"];
             var stsSignInPath = Configuration["dimensionData:ui:sts:signInPath"];
@@ -198,10 +207,55 @@ namespace AuthTest2
                         }
                         return Task.CompletedTask;
                     },
-                    OnSecurityTokenValidated = context =>
+                    OnSecurityTokenValidated = async notifications =>
                     {
-                        var i = 0;
-                        return Task.CompletedTask;
+                        // Handle reverse proxy
+                        //string[] protocols;
+                        //if (notifications.Request.Headers.TryGetValue("X-Forwarded-Proto", out protocols))
+                        //{
+                        //    var isHttps = protocols.Contains("https", StringComparer.OrdinalIgnoreCase);
+                        //    if (isHttps)
+                        //    {
+                        //        notifications.AuthenticationTicket.Properties.RedirectUri =
+                        //            notifications.AuthenticationTicket.Properties.RedirectUri.Replace("http://", "https://");
+                        //    }
+                        //}
+
+                        if (notifications.ProtocolMessage.IsSignInMessage)
+                        {
+                            var httpClient = CreateUpmClient(Configuration);
+
+                            var formContent = OAuth2Request.GetOAuth2RequestContent(
+                                "urn:ietf:params:oauth:grant-type:saml1-bearer",
+                                notifications.ProtocolMessage.GetToken()
+                            );
+
+                            var response = await httpClient.PostAsync("oauth2/token", formContent);
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                var errorResponse = await response.Content.ReadAsStringAsync();
+
+                                // Using Serilog directly (with logs location and settings preconfigured in Startup.Configuration)
+                                // Have do to this due to the IOC contain with the ILogger service not yet available at this stage
+                                //Serilog.Log.Logger.Warning(
+                                //    "OAuth token exchange failed with status {0}. Response: {1}",
+                                //    response.StatusCode,
+                                //    errorResponse
+                                //);
+                                return;
+                            }
+
+                            var tokenResponse = await response.Content.ReadAsAsync<OAuth2ResponseModel>();
+                            if (String.IsNullOrWhiteSpace(tokenResponse.AccessToken))
+                            {
+                                //Serilog.Log.Logger.Error("Failed to get a token from a OAuth token response.");
+                                return;
+                            }
+
+                            string jwtClaimType = Configuration["dimensionData:ui:auth:jwtClaimType"];
+                            var identity = new ClaimsIdentity(notifications.Principal.Identity, new[] { new Claim(jwtClaimType, tokenResponse.AccessToken) });
+                            notifications.Principal = new ClaimsPrincipal(identity);
+                        }
                     },
                     OnMessageReceived = context =>
                     {
@@ -216,9 +270,28 @@ namespace AuthTest2
                 };
             })
             .AddCookie();
+            CreateUpmClient(Configuration);
 
             services.AddMvc();
         }
+
+
+        private HttpClient CreateUpmClient(IConfiguration configuration)
+        {
+            var envOptions = new EnvironmentOptions();
+            configuration.GetSection("dimensionData:environment").Bind(envOptions);
+//            IServiceDiscoveryClient serviceDiscoveryClient = new ServiceDiscoveryClient(Options.Create(envOptions));
+//
+//            string upmKey = Configuration["dimensionData:ui:keys:upm"];
+//            var baseAddress = serviceDiscoveryClient.FindGlobalApiService(upmKey).Result;
+//            return new HttpClientBuilder()
+//                .SetBaseAddress(baseAddress)
+//                .SetRetryPolicy(3, TimeSpan.FromSeconds(1), 2)
+//                .Build();
+
+            return null;
+        }
+
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
