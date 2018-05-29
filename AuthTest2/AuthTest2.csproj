@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DimensionData.ServiceLayer.Sdk" Version="2.1.75" />
+    <PackageReference Include="DimensionData.ServiceLayer.Sdk" Version="2.1.82" />
     <PackageReference Include="DimensionData.Toolset" Version="2.1.22" />
     <PackageReference Include="DimensionData.Toolset.WebApi.Client" Version="1.0.346" />
     <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.4" />
